@@ -1,0 +1,152 @@
+image: registry.gitlab.com/chromaway/core-tools/chromia-images/maven-docker-java21:1.0.6@sha256:089097e3a81f53e3c707847579228bfc466a1eb826f8fd1a1b885b99d62e8c36
+
+include:
+  - project: "chromaway/core-infra/gitlab-automation"
+    ref: 1.2.0
+    file:
+      - templates/release.yml
+      - templates/maven-dependency-scanning.yml
+      - templates/container-dependency-scanning.yml
+
+.setup:
+  services:
+    - name: docker:23.0.4-dind
+      alias: docker
+      command: [ "--tls=false" , "--experimental" ]
+  artifacts:
+    when: always
+    paths:
+      - "**/*.log"
+    expire_in: 1 week
+
+.setup_with_postgres:
+  extends:
+    - .setup
+  before_script:
+    - docker run
+      --detach
+      --name postgres
+      --env POSTGRES_PASSWORD=postchain
+      --env POSTGRES_USER=postchain
+      --env PGDATA=/pgtmpfs
+      --env POSTGRES_INITDB_ARGS='--encoding=UTF-8 --lc-collate=C.UTF-8'
+      --tmpfs=/pgtmpfs:size=1000m
+      --publish 5432:5432
+      pgvector/pgvector:pg16@sha256:6146bbae6967442ba8a7ddc517e2a259de62935c0b2055260781b15446a0a7fb
+
+stages:
+  - build
+  - deploy
+  - dependency-check
+  - prepare_release
+  - release
+
+deploy-snapshot:
+  extends: .setup
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+  script:
+    - if $(git rev-parse --is-shallow-repository); then git fetch --unshallow ; fi
+    - CURRENT_VERSION=$(git describe --tags --abbrev=0)
+    - IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+    - SNAPSHOT_VERSION=$MAJOR.$((MINOR + 1)).0-SNAPSHOT
+    - mvn
+      $MAVEN_CLI_OPTS
+      -Drevision=$SNAPSHOT_VERSION
+      -DskipTests
+      --activate-profiles docker-push
+      clean source:jar deploy
+
+# Triggered by that a semver tag was pushed
+deploy:
+  extends: .setup
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/
+  script:
+    - mvn
+      $MAVEN_CLI_OPTS
+      -Drevision=$CI_COMMIT_TAG
+      -Djib.to.tags=${CI_COMMIT_TAG},latest
+      -DskipTests
+      --activate-profiles docker-push
+      clean source:jar deploy
+
+build:
+  extends:
+    - .setup_with_postgres
+  stage: build
+  interruptible: true
+  except:
+    refs:
+      - tags
+  script:
+    - mvn
+      $MAVEN_CLI_OPTS
+      verify
+
+prepare_release:
+  stage: prepare_release
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v?\d+\.\d+\.\d+$/'
+  script:
+    - 'curl -H "PRIVATE-TOKEN: $CI_API_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/changelog?version=$CI_COMMIT_TAG" | jq -r .notes > release_notes.md'
+  artifacts:
+    paths:
+      - release_notes.md
+
+gitlab-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: prepare_release
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v?\d+\.\d+\.\d+$/'
+  script:
+    - echo "Running the release job."
+  release:
+    name: 'Vector DB extension $CI_COMMIT_TAG'
+    description: release_notes.md
+    tag_name: '$CI_COMMIT_TAG'
+
+dependency-check:
+  extends: .maven-dependency-check
+  stage: dependency-check
+  interruptible: true
+  rules:
+    - if: $RUN_DEPENDENCY_CHECK == "true"
+
+container-scanning:
+  variables:
+    REGISTRY: registry.gitlab.com/chromaway/core/vector-db-extension-chromia-subnode
+  parallel:
+    matrix:
+      - IMAGE: [ vector-db-extension-chromia-subnode ]
+        VERSION: [ LATEST, LATEST_SNAPSHOT ]
+  only:
+    variables:
+      - $RUN_DEPENDENCY_CHECK == "true"
+
+variables:
+  # This will suppress any download for dependencies and plugins or upload messages which would clutter the console log.
+  # `showDateTime` will show the passed time in milliseconds. You need to specify `--batch-mode` to make this work.
+  MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
+  # As of Maven 3.3.0 instead of this you may define these options in `.mvn/maven.config` so the same config is used
+  # when running from the command line.
+  # `installAtEnd` and `deployAtEnd` are only effective with recent version of the corresponding plugins.
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true -s .gitlab-settings.xml -U"
+  MAVEN_CLI_NVD_OPTS: "-DnvdDatafeedUrl=https://nvd-data-feeds.chromia.dev/nvdcve-{0}.json.gz"
+  POSTCHAIN_DB_URL: jdbc:postgresql://docker/postchain
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  DOCKER_CLI_EXPERIMENTAL: enabled
+  JACOCO_REPORT_DIR: target/site/jacoco
+
+# Cache downloaded dependencies and plugins between builds.
+# To keep cache across branches add 'key: "$CI_JOB_NAME"'
+cache:
+  paths:
+    - .m2/repository

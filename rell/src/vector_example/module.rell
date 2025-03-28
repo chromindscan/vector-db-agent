@@ -1,0 +1,80 @@
+module;
+
+import lib.*;
+
+entity message { text; }
+
+val CONTEXT_MESSAGE = 0;
+
+/**
+ * Add a message with a vector. The vector is emitted to the extension and stored in the database with the entity
+ * rowid as id.
+ *
+ * @param text The text message represented by this vector
+ * @param vector The vector on format [1.0,2.0,...]
+ */
+operation add_message(text, vector: text) {
+    val msg = create message (text);
+    store_vector(CONTEXT_MESSAGE, vector, msg.rowid.to_integer());
+}
+
+/** Delete text and its vector */
+operation delete_message(text) {
+    val msg = message @ { text };
+    delete_vector(CONTEXT_MESSAGE, msg.rowid.to_integer());
+    delete msg;
+}
+
+/**
+ * Query template function to map vector ids to corresponding texts
+ *
+ * @param closest_results The vector search result supplied by the `query_closest_objects` search.
+ */
+query get_messages(closest_results: list<object_distance>): list<text> {
+    val closest_result_ids = closest_results @ {} ( @set(rowid(.id)) );
+    val messages_map = message @ { .rowid in closest_result_ids } ( @map(.rowid.to_integer(), .text) );
+    val results = list<text>();
+    for (closest_result in closest_results) {
+        results.add(messages_map[closest_result.id]);
+    }
+    return results;
+}
+
+/** Struct returned by get_messages_with_distance */
+struct message_distance {
+    text: text;
+    distance: decimal;
+}
+
+/**
+ * Query template function to map vector ids to corresponding texts with distance
+ *
+ * @param closest_results The vector search result supplied by the `query_closest_objects` search.
+ */
+query get_messages_with_distance(closest_results: list<object_distance>): list<message_distance> {
+    val closest_results_map = closest_results @ {} ( @set(rowid(.id)) );
+    val messages_map = message @ { .rowid in closest_results_map } ( @map(.rowid.to_integer(), .text) );
+    val results = list<message_distance>();
+    for (closest_result in closest_results) {
+        results.add(message_distance(messages_map[closest_result.id], closest_result.distance));
+    }
+    return results;
+}
+
+/**
+ * Query template function with custom arguments
+ *
+ * @param closest_results The vector search result supplied by the `query_closest_objects` search.
+ */
+query get_messages_with_filter(closest_results: list<object_distance>, text_filter: text): list<text> {
+    val closest_result_ids = closest_results @ {} ( @set(rowid(.id)) );
+    val messages_map = message @ { .rowid in closest_result_ids } ( @map(.rowid.to_integer(), .text) );
+    val results = list<text>();
+    for (closest_result in closest_results) {
+        val message = messages_map[closest_result.id];
+        if (message.contains(text_filter)) {
+            results.add(messages_map[closest_result.id]);
+        }
+    }
+    return results;
+}

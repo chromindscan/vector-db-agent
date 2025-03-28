@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<dict>
+    <entry key="add_primary_key_to_header">
+        <int>1</int>
+    </entry>
+    <entry key="blockstrategy">
+        <dict>
+            <entry key="mininterblockinterval">
+                <int>1000</int>
+            </entry>
+            <entry key="name">
+                <string>net.postchain.devtools.OnDemandBlockBuildingStrategy</string>
+            </entry>
+        </dict>
+    </entry>
+    <entry key="config_consensus_strategy">
+        <string>HEADER_HASH</string>
+    </entry>
+    <entry key="configurationfactory">
+        <string>net.postchain.gtx.GTXBlockchainConfigurationFactory</string>
+    </entry>
+    <entry key="signers">
+        <array>
+            <!-- Key0 -->
+            <bytea>03a301697bdfcd704313ba48e51d567543f2a182031efd6915ddc07bbcc4e16070</bytea>
+        </array>
+    </entry>
+    <entry key="gtx">
+        <dict>
+            <entry key="modules">
+                <array>
+                    <string>net.postchain.rell.module.RellPostchainModuleFactory</string>
+                    <string>net.postchain.configurations.GTXTestModule</string>
+                    <string>net.postchain.gtx.StandardOpsGTXModule</string>
+                    <string>net.postchain.gtx.extensions.vectordb.VectorDbGTXModule</string>
+                </array>
+            </entry>
+            <entry key="rell">
+                <dict>
+                    <entry key="compilerVersion">
+                        <string>0.14.2</string>
+                    </entry>
+                    <entry key="modules">
+                        <array>
+                            <string>vector_example</string>
+                        </array>
+                    </entry>
+                    <entry key="sources">
+                        <dict>
+                            <entry key="lib/module.rell">
+                                <string>module;
+
+/**
+ * Stores a vector in the database.
+ *
+ * @param context The context of the vector.
+ * @param vector The vector to store.
+ * @param id The id of the vector, this is the id to be returned from a search.
+ */
+function store_vector(context: integer, vector: text, id: integer) {
+    op_context.emit_event("store_vector", (context = context, vector = vector, id = id).to_gtv_pretty());
+}
+
+function delete_vector(context: integer, id: integer) {
+    op_context.emit_event("delete_vector", (context = context, id = id).to_gtv_pretty());
+}
+
+/** A vector search result object. The query template function gets a list of this object. */
+struct object_distance {
+    id: integer;
+    distance: decimal;
+}</string>
+                            </entry>
+                            <entry key="vector_example/module.rell">
+                                <string>module;
+
+import lib.*;
+
+entity message { text; }
+
+val CONTEXT_MESSAGE = 0;
+
+/**
+ * Add a message with a vector. The vector is emitted to the extension and stored in the database with the entity
+ * rowid as id.
+ */
+operation add_message(text, vector: text) {
+    val msg = create message (text);
+    store_vector(CONTEXT_MESSAGE, vector, msg.rowid.to_integer());
+}
+
+operation delete_message(text) {
+    val msg = message @ { text };
+    delete_vector(CONTEXT_MESSAGE, msg.rowid.to_integer());
+    delete msg;
+}
+
+/** Query template function to map vector ids to corresponding texts */
+query get_messages(closest_results: list&lt;object_distance&gt;): list&lt;text&gt; {
+    val closest_result_ids = closest_results @ {} ( @set(rowid(.id)) );
+    val messages_map = message @ { .rowid in closest_result_ids } ( @map(.rowid.to_integer(), .text) );
+    val results = list&lt;text&gt;();
+    for (closest_result in closest_results) {
+        results.add(messages_map[closest_result.id]);
+    }
+    return results;
+}
+
+/** Query template function to map vector ids to corresponding texts with distance */
+struct message_distance {
+    text: text;
+    distance: decimal;
+}
+query get_messages_with_distance(closest_results: list&lt;object_distance&gt;): list&lt;message_distance&gt; {
+    val closest_results_map = closest_results @ {} ( @set(rowid(.id)) );
+    val messages_map = message @ { .rowid in closest_results_map } ( @map(.rowid.to_integer(), .text) );
+    val results = list&lt;message_distance&gt;();
+    for (closest_result in closest_results) {
+        results.add(message_distance(messages_map[closest_result.id], closest_result.distance));
+    }
+    return results;
+}
+
+/** Query template function with custom arguments */
+query get_messages_with_filter(closest_results: list&lt;object_distance&gt;, text_filter: text): list&lt;text&gt; {
+    val closest_result_ids = closest_results @ {} ( @set(rowid(.id)) );
+    val messages_map = message @ { .rowid in closest_result_ids } ( @map(.rowid.to_integer(), .text) );
+    val results = list&lt;text&gt;();
+    for (closest_result in closest_results) {
+        val message = messages_map[closest_result.id];
+        if (message.contains(text_filter)) {
+            results.add(messages_map[closest_result.id]);
+        }
+    }
+    return results;
+}
+</string>
+                            </entry>
+                        </dict>
+                    </entry>
+                    <entry key="strictGtvConversion">
+                        <int>1</int>
+                    </entry>
+                    <entry key="version">
+                        <string>0.13.14</string>
+                    </entry>
+                </dict>
+            </entry>
+        </dict>
+    </entry>
+    <entry key="revolt">
+        <dict>
+            <entry key="fast_revolt_status_timeout">
+                <int>2000</int>
+            </entry>
+            <entry key="revolt_when_should_build_block">
+                <int>1</int>
+            </entry>
+        </dict>
+    </entry>
+    <entry key="vector_db_extension">
+        <dict>
+            <entry key="dimensions">
+                <int>3</int>
+            </entry>
+        </dict>
+    </entry>
+</dict>

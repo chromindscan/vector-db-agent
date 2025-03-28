@@ -1,0 +1,14 @@
+blockchains:
+  vector_example:
+    module: vector_example
+    config:
+      gtx:
+        modules:
+          - "net.postchain.gtx.extensions.vectordb.VectorDbGTXModule"
+      vector_db_extension:
+        dimensions: 1536
+deployments:
+  testnet:
+    brid: x"97E2F94CBB353CB62CB3E49C190F97C8A7B1A77418FD1262E7B16DB22179C530"
+    url: https://node0.testnet.chromia.com:7740
+    container: dapp

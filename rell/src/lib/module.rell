@@ -1,0 +1,22 @@
+module;
+
+/**
+ * Stores a vector in the database.
+ *
+ * @param context The context of the vector.
+ * @param vector The vector to store.
+ * @param id The id of the vector, this is the id to be returned from a search.
+ */
+function store_vector(context: integer, vector: text, id: integer) {
+    op_context.emit_event("store_vector", (context = context, vector = vector, id = id).to_gtv_pretty());
+}
+
+function delete_vector(context: integer, id: integer) {
+    op_context.emit_event("delete_vector", (context = context, id = id).to_gtv_pretty());
+}
+
+/** A vector search result object. The query template function gets a list of this object. */
+struct object_distance {
+    id: integer;
+    distance: decimal;
+}
