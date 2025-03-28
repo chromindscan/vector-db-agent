@@ -58,3 +58,77 @@ chr tx -brid $vector_brid add_message "Your text here" "[1.0, 2.0, 3.0]"
 ```bash
 chr query -brid $vector_brid query_closest_objects context=0 q_vector="[1.0, 2.5, 3.0]" max_distance=1.0 max_vectors=2 'query_template=["type":"get_messages_with_distance"]'
 ```
+
+# API Based Text/Completion Functions
+
+### 1. Text Embedding
+
+**Endpoint:** `POST /v1/text_embedding`
+
+Embeds text using OpenAI's text-embedding-3-small model and stores it in the Chromia vector database (make sure the local node running)
+
+**Request:**
+```json
+{
+  "text": "Your text to be embedded and stored"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+}
+```
+
+### 2. Text Search
+
+**Endpoint:** `POST /v1/text_search`
+
+Performs semantic search on the vector database without LLM processing.
+
+**Request:**
+```json
+{
+  "text": "Text to search for",
+  "max_results": 5
+}
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "text": "Most similar text from database",
+      "distance": 0.123456789
+    },
+    {
+      "text": "Second most similar text",
+      "distance": 0.234567890
+    }
+  ]
+}
+```
+
+### 3. Text Conversation
+
+**Endpoint:** `POST /v1/text_conversation`
+
+Searches the vector database for relevant context and generates a natural language response using LLM.
+
+**Request:**
+```json
+{
+  "question": "Your question here",
+  "top_k": 3
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "LLM-generated answer based on retrieved context",
+  "results": "Retrieved results"
+}
+```
