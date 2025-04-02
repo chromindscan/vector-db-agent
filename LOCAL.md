@@ -39,6 +39,14 @@
    ```bash
    pmc blockchain add -bc build/vector_example.xml -c dapp -n vector_blockchain
    ```
+  
+  **Note**
+  
+  ****If you face errors that are as below
+  Cannot add bc proposal: [common:require_provider(common/require.rell:7)] Operation 'proposal_blockchain:propose_blockchain' failed: Unknown provider 0x037a460dd8ab50cc6f81a52a48ecabeb2ebf5bcc2765fead943710ee26e596da18****
+
+  ****Make sure in root .chromia/config, the 'priv' and 'pub' keys are matching the "Provider and container owner"
+  Set the api.url to localhost****
 
 6. **Get your blockchain RID**:
    ```bash

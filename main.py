@@ -4,9 +4,12 @@ import os
 import json
 import asyncio
 import re
+import aiohttp
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 from app.models import (
     TextEmbeddingResponse,
     TextSearchRequest,
@@ -19,6 +22,8 @@ from app.models import (
 from app.coingecko_api import get_coin_info
 
 app = FastAPI(title="Chromia Research Agent")
+
+coingecko_api_key = os.environ.get("COINGECKO_API_KEY")
 
 app.add_middleware(
     CORSMiddleware,
@@ -120,12 +125,12 @@ async def extract_coin_names_from_text(client, text: str) -> List[str]:
 
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {
                         "role": "user",
-                        "content": f"Extract cryptocurrencies from this text: {text}",
+                        "content": f"Extract the correct cryptocurrency symbol from this text: {text}",
                     },
                 ],
                 temperature=0.0,
@@ -157,6 +162,17 @@ async def extract_coin_names_from_text(client, text: str) -> List[str]:
             "XRP": "XRP",
             "DOGE": "Dogecoin",
             "SHIB": "Shiba Inu",
+            "CHR": "Chromia",
+            "AVAX": "Avalanche",
+            "TON": "Toncoin",
+            "MATIC": "Polygon",
+            "LINK": "Chainlink",
+            "UNI": "Uniswap",
+            "BCH": "Bitcoin Cash",
+            "LTC": "Litecoin",
+            "XLM": "Stellar",
+            "XMR": "Monero",
+            "XRP": "Ripple"
         }
 
         # Replace symbols with full names where possible
@@ -289,7 +305,7 @@ async def conversation(request: TextConversationRequest = Body(...)):
 
     market_data = None
     if coin_name:
-        market_data = await get_coin_info(coin_name)
+        market_data = await get_coin_info(coin_name, coingecko_api_key)
 
     answer = await generate_crypto_response(
         client, request.question, results, market_data
@@ -310,7 +326,40 @@ async def conversation(request: TextConversationRequest = Body(...)):
     return formatted_response
 
 
+@app.get("/health", response_model=Dict[str, Any])
+async def health_check():
+    """Health check endpoint that verifies the API and Docker container status."""
+    status = {
+        "api_status": "healthy",
+        "docker_status": "unknown",
+        "vector_blockchain": "unknown"
+    }
+    
+    # Check Docker container running on port 7740
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://localhost:7740", timeout=2) as response:
+                if response.status == 200:
+                    status["docker_status"] = "healthy"
+                else:
+                    status["docker_status"] = f"unhealthy - status code: {response.status}"
+    except asyncio.TimeoutError:
+        status["docker_status"] = "unhealthy - timeout"
+    except aiohttp.ClientError as e:
+        status["docker_status"] = f"unhealthy - connection error: {str(e)}"
+    
+    # Check vector blockchain availability
+    try:
+        vector_brid = await get_blockchain_rid()
+        if vector_brid:
+            status["vector_blockchain"] = "available"
+    except Exception as e:
+        status["vector_blockchain"] = f"unavailable - {str(e)}"
+    
+    return status
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8010)

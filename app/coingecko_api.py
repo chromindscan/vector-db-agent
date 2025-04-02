@@ -7,16 +7,26 @@ import time
 
 class CoinGeckoAPI:
     """
-    A client for interacting with the CoinGecko API.
+    A client for interacting with the CoinGecko Pro API.
     Uses rate limiting to avoid hitting API limits.
     """
     
-    BASE_URL = "https://api.coingecko.com/api/v3"
+    BASE_URL = "https://pro-api.coingecko.com/api/v3"
     
-    def __init__(self):
+    def __init__(self, api_key: str):
+        """
+        Initialize the CoinGecko API client.
+        
+        Args:
+            api_key: Required CoinGecko Pro API key
+        """
+        if not api_key:
+            raise ValueError("API key is required for CoinGecko Pro API")
+            
         self.session = None
         self.last_request_time = 0
-        self.rate_limit_delay = 1.5  # 1.5 seconds between requests for free API
+        self.api_key = api_key
+        self.rate_limit_delay = 0.05  # 20 requests per second for Pro API
     
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -37,10 +47,17 @@ class CoinGeckoAPI:
         
         self.last_request_time = time.time()
         
+        # Prepare request parameters
+        params = params or {}
+        headers = {
+            "accept": "application/json",
+            "x-cg-pro-api-key": self.api_key
+        }
+        
         # Make the request
         url = f"{self.BASE_URL}/{endpoint}"
         try:
-            async with self.session.get(url, params=params) as response:
+            async with self.session.get(url, params=params, headers=headers) as response:
                 if response.status == 200:
                     return await response.json()
                 elif response.status == 429:
@@ -88,12 +105,19 @@ class CoinGeckoAPI:
             {"vs_currency": "usd", "days": str(days)}
         )
 
-async def get_coin_info(coin_name: str) -> Dict[str, Any]:
+async def get_coin_info(coin_name: str, api_key: str) -> Dict[str, Any]:
     """
     Helper function to get comprehensive information about a coin.
     Returns a formatted dictionary with key information.
+    
+    Args:
+        coin_name: Name or symbol of the coin to query
+        api_key: CoinGecko Pro API key (required)
     """
-    async with CoinGeckoAPI() as api:
+    if not api_key:
+        return {"error": "CoinGecko Pro API key is required"}
+        
+    async with CoinGeckoAPI(api_key=api_key) as api:
         try:
             # Get the coin ID
             coin_id = await api.get_coin_id(coin_name)
@@ -139,12 +163,20 @@ async def get_coin_info(coin_name: str) -> Dict[str, Any]:
 # Example usage
 if __name__ == "__main__":
     import sys
+    import os
     
     async def main():
+        # Get API key from environment variable
+        api_key = os.environ.get("COINGECKO_API_KEY")
+        
+        if not api_key:
+            print("Error: COINGECKO_API_KEY environment variable must be set")
+            sys.exit(1)
+            
         if len(sys.argv) > 1:
             coin_name = sys.argv[1]
             print(f"Fetching data for {coin_name}...")
-            result = await get_coin_info(coin_name)
+            result = await get_coin_info(coin_name, api_key)
             print(json.dumps(result, indent=2))
         else:
             print("Please provide a coin name as an argument")

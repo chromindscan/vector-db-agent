@@ -5,6 +5,9 @@ import os
 import asyncio
 import subprocess
 from openai import OpenAI
+from dotenv import load_dotenv
+# Load environment variables
+load_dotenv()
 
 # Load OpenAI API key
 api_key = os.environ.get("OPENAI_API_KEY")
@@ -86,7 +89,7 @@ async def process_coin(name, history, brid):
 async def main():
     """Main function to embed cryptocurrency data."""
     print("Loading cryptocurrency data from data.yaml...")
-    with open("data.yaml", "r") as file:
+    with open("/root/vector-db-agent/data.yaml", "r") as file:
         data = yaml.safe_load(file)
     
     if not data or "cryptocurrencies" not in data:
