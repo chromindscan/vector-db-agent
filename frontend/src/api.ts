@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { CryptoResponse, SearchResponse, EmbeddingResponse } from './types';
 
-const API_URL = '/v1';
+// Hardcode for now
+const API_URL = 'http://134.209.109.74:8010/v1';
 
 export const askQuestion = async (question: string, topK: number = 3): Promise<CryptoResponse> => {
   try {
