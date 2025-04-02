@@ -14,9 +14,15 @@ examples/out
 _build
 _doc
 logs
+node_modules
 
 build
 .flattened-pom.xml
 .chromia*
 .env
 .gitlab
+.pycache
+.venv
+.vscode
+.env
+*.pyc

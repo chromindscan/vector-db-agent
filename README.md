@@ -151,3 +151,28 @@ This project consists of three main components:
 - Chromia Vector DB Extension
 - OpenAI API
 - CoinGecko API
+
+## Frontend
+
+A minimalist React + TypeScript frontend has been added to the project. To use it:
+
+1. Install frontend dependencies:
+```bash
+cd frontend
+npm install
+```
+
+2. Start the development server:
+```bash
+npm run dev
+```
+
+3. Open your browser and navigate to http://localhost:5173
+
+The frontend allows you to:
+- Ask questions about cryptocurrencies
+- View real-time price data from CoinGecko
+- Access historical information stored in the vector database
+- View related cryptocurrency information
+
+Make sure the backend API is running on port 8000 before starting the frontend.
