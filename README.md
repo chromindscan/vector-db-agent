@@ -1,5 +1,7 @@
 # Chromia Vector DB Cryptocurrency Research Agent
 
+![Cryptocurrency Research Agent](https://github.com/chromindscan/vector-db-agent/blob/main/public/landing.png)
+
 This project combines Chromia Vector DB with CoinGecko API to create a cryptocurrency research agent that provides historical context and current market data.
 
 ## Features
