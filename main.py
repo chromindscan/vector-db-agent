@@ -294,18 +294,24 @@ async def search_text(request: TextSearchRequest = Body(...)):
 async def conversation(request: TextConversationRequest = Body(...)):
 
     client = get_openai_client()
-
+    
+    print('Generating embedding...')
     embedding = await get_embedding(client, request.question)
 
+    print('Querying vector database...')
     results = await query_vector_db(embedding, request.top_k)
 
+    print('Extracting coin names...')
     detected_coins = await extract_coin_names_from_text(client, request.question)
     if detected_coins:
         coin_name = detected_coins[0]
 
     market_data = None
     if coin_name:
-        market_data = await get_coin_info(coin_name, coingecko_api_key)
+        market_data = await get_coin_info(coin_name)
+        
+    print(market_data)
+    print(detected_coins)
 
     answer = await generate_crypto_response(
         client, request.question, results, market_data
