@@ -25,9 +25,12 @@ if [ $? -ne 0 ]; then
 fi
 cd ..
 
-# Step 4: Deploy the blockchain
+echo "Moving to rell/build"
+cd rell
+cd build
+
 echo "Deploying vector blockchain..."
-pmc blockchain add -bc rell/build/vector_example.xml -c dapp -n vector_blockchain
+pmc blockchain add -bc vector_example.xml -c dapp -n vector_blockchain
 if [ $? -ne 0 ]; then
     echo "Error: Failed to deploy vector blockchain."
     exit 1
