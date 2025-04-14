@@ -1,6 +1,16 @@
-![Cryptocurrency Research Agent](https://github.com/chromindscan/vector-db-agent/blob/main/public/landing.png)
+![Cryptocurrency Research Agent](https://github.com/chromindscan/vector-db-agent/blob/main/public/header.png)
 
 This project combines Chromia Vector DB with CoinGecko API to create a cryptocurrency research agent that provides historical context and current market data.
+
+Live Demo - https://vector-db-agent-sandbox.vercel.app/
+
+
+Video Demo
+
+[Ingest](https://github.com/chromindscan/vector-db-agent/blob/main/public/ingest.mp4)
+
+
+[Conversation](https://github.com/chromindscan/vector-db-agent/blob/main/public/chat.mp4)
 
 ## Features
 
@@ -44,48 +54,68 @@ This project combines Chromia Vector DB with CoinGecko API to create a cryptocur
 
 ## Usage
 
-### 1. Embedding Cryptocurrency Data
-
-First, embed the cryptocurrency data from `data.yaml` into the vector database:
+Run the startup script which handles the full setup process:
 
 ```bash
-python embed_crypto_data.py
+sh start_vector_db.sh
 ```
 
-This script processes the cryptocurrency histories and stores them as vector embeddings in the Chromia blockchain.
+This script will:
+1. Install the local Chromia node if not already installed
+2. Set up the blockchain and build the dapp with the local node
+3. Run the API backend server automatically
 
-### 2. Starting the API Server
+No need to manually run separate scripts for embedding data or starting the API server.
 
-Start the cryptocurrency research agent API:
+## API Endpoints
 
-```bash
-python crypto_agent.py
-```
+The cryptocurrency research agent provides the following REST API endpoints:
 
-The server will run on http://localhost:8000.
+### Vector Database Operations
 
+#### POST /v1/text_embedding
+Embeds text into the vector database.
+- **Request Body**: 
+  ```json
+  {
+    "text": "String of text to embed"
+  }
+  ```
+- **Response**: Success status and error message if applicable
 
-## Web Application
+#### POST /v1/text_search
+Searches the vector database for similar text.
+- **Request Body**: 
+  ```json
+  {
+    "text": "Text to search for",
+    "max_results": 5
+  }
+  ```
+- **Response**: List of results with text and distance metrics
 
-A minimalist React + TypeScript frontend has been added to the project. To use it:
+### Conversation
 
-1. Install frontend dependencies:
-```bash
-cd frontend
-npm install
-```
+#### POST /v1/text_conversation
+Submit a question about cryptocurrencies and get an AI-powered response.
+- **Request Body**: 
+  ```json
+  {
+    "question": "What is Bitcoin?",
+    "top_k": 3
+  }
+  ```
+- **Response**: Answer with related information and market data if available
 
-2. Start the development server:
-```bash
-npm run dev
-```
+#### GET /v1/conversation_history
+Retrieve recent conversation history.
+- **Query Parameters**:
+  - `limit`: Maximum number of conversations to return (default: 10)
+- **Response**: List of recent conversations with questions, answers, and timestamps
 
-3. Open your browser and navigate to http://localhost:5173
+### System
 
-The frontend allows you to:
-- Ask questions about cryptocurrencies
-- View real-time price data from CoinGecko
-- Access historical information stored in the vector database
-- View related cryptocurrency information
+#### GET /health
+Check the health and status of the API and connected services.
+- **Response**: Status information about the API, Docker container, and vector blockchain
 
-Make sure the backend API is running on port 8000 before starting the frontend.
