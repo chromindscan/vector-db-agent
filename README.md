@@ -2,6 +2,15 @@
 
 This project combines Chromia Vector DB with CoinGecko API to create a cryptocurrency research agent that provides historical context and current market data.
 
+Live Demo - https://vector-db-agent-sandbox.vercel.app/
+
+Video Demo
+
+[Ingest](https://github.com/chromindscan/vector-db-agent/blob/main/public/ingest.mp4)
+
+
+[Conversation](https://github.com/chromindscan/vector-db-agent/blob/main/public/chat.mp4)
+
 ## Features
 
 - **Vector Database**: Store and retrieve cryptocurrency historical information using Chromia's vector database
