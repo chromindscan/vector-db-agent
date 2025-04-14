@@ -26,3 +26,5 @@ build
 .vscode
 .env
 *.pyc
+*.sqlite
+*database

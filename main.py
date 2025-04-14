@@ -8,6 +8,7 @@ import aiohttp
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
 
 load_dotenv()
 from app.models import (
@@ -20,8 +21,15 @@ from app.models import (
 )
 
 from app.coingecko_api import get_coin_info
+# Import database modules
+from app.database import init_db, get_db, store_embedding, store_conversation, get_recent_conversations
 
 app = FastAPI(title="Chromia Research Agent")
+
+# Initialize database on startup
+@app.lifespan_events()
+async def startup_event():
+    init_db()
 
 coingecko_api_key = os.environ.get("COINGECKO_API_KEY")
 
@@ -119,7 +127,7 @@ async def extract_coin_names_from_text(client, text: str) -> List[str]:
         system_prompt = """You are a cryptocurrency identification expert. 
                             Extract any cryptocurrency names mentioned in the user's text. 
                             Return ONLY the standard name or symbol of the cryptocurrencies (e.g., "Bitcoin", "BTC", "Ethereum", "ETH").
-                            If there are no cryptocurrencies mentioned, return "None".
+                            If there are no cryptocurrencies mentioned, my default use "CHR".
                             Return multiple cryptos as a comma-separated list.
                             Only return the official names or symbols, nothing else."""
 
@@ -216,7 +224,7 @@ async def generate_crypto_response(
 
                         This is the latest market data for the cryptocurrency:
                         {market_info if market_info else ''}
-
+                        
                         Answer the user's question about cryptocurrencies based on both historical information and current market data if provided.
                         
                         Do not provide any speculative investment advice or additional information outside the scope of the question or the {context_text}
@@ -246,7 +254,10 @@ async def generate_crypto_response(
 
 
 @app.post("/v1/text_embedding", response_model=TextEmbeddingResponse)
-async def embed_text(request: TextEmbeddingRequest = Body(...)):
+async def embed_text(
+    request: TextEmbeddingRequest = Body(...), 
+    db: Session = Depends(get_db)
+):
     client = get_openai_client()
 
     try:
@@ -268,9 +279,12 @@ async def embed_text(request: TextEmbeddingRequest = Body(...)):
             shell=True,
         )
         stdout, stderr = await process.communicate()
+        print(stdout.decode())
 
         result = stdout.decode()
         if "CONFIRMED" in result:
+            # Store in SQLite database
+            await store_embedding(db, request.text)
             return TextEmbeddingResponse(success=True)
         else:
             return TextEmbeddingResponse(success=False, error=result)
@@ -291,14 +305,17 @@ async def search_text(request: TextSearchRequest = Body(...)):
 
 
 @app.post("/v1/text_conversation", response_model=TextConversationResponse)
-async def conversation(request: TextConversationRequest = Body(...)):
-
+async def conversation(
+    request: TextConversationRequest = Body(...),
+    db: Session = Depends(get_db)
+):
     client = get_openai_client()
 
     embedding = await get_embedding(client, request.question)
 
     results = await query_vector_db(embedding, request.top_k)
 
+    coin_name = None
     detected_coins = await extract_coin_names_from_text(client, request.question)
     if detected_coins:
         coin_name = detected_coins[0]
@@ -311,12 +328,31 @@ async def conversation(request: TextConversationRequest = Body(...)):
         client, request.question, results, market_data
     )
 
+    # Store embedding first
+    db_embedding = await store_embedding(db, request.question)
+    
+    # Create related answers in format for database
+    related_answers = [
+        {"answer": item["text"], "distance": item["distance"]} for item in results
+    ]
+    
+    # Store conversation response
+    await store_conversation(
+        db,
+        embedding_id=db_embedding.id,
+        question=request.question,
+        answer=answer,
+        related_answers=related_answers,
+        market_data={
+            "symbol": market_data.get("symbol") if market_data else None,
+            "current_price": market_data.get("current_price") if market_data else None,
+        },
+    )
+
     formatted_response = {
         "question": request.question,
         "answer": answer,
-        "related_answers": [
-            {"answer": item["text"], "distance": item["distance"]} for item in results
-        ],
+        "related_answers": related_answers,
         "market_data": {
             "symbol": market_data.get("symbol") if market_data else None,
             "current_price": market_data.get("current_price") if market_data else None,
@@ -357,6 +393,28 @@ async def health_check():
         status["vector_blockchain"] = f"unavailable - {str(e)}"
     
     return status
+
+
+@app.get("/v1/conversation_history")
+async def get_conversation_history(limit: int = 10, db: Session = Depends(get_db)):
+    """Retrieve recent conversation history from the database"""
+    conversations = await get_recent_conversations(db, limit)
+    
+    # Format the response
+    history = []
+    for conv in conversations:
+        history.append({
+            "id": conv.id,
+            "question": conv.question,
+            "answer": conv.answer,
+            "created_at": conv.created_at.isoformat(),
+            "market_data": {
+                "symbol": conv.coin_symbol,
+                "price": conv.coin_price
+            } if conv.coin_symbol else None
+        })
+    
+    return {"history": history, "count": len(history)}
 
 
 if __name__ == "__main__":
